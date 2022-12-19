@@ -3,12 +3,12 @@ package utils
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
+	"go.uber.org/zap"
 	"xojoc.pw/useragent"
 )
 
@@ -18,10 +18,8 @@ type ipUtil struct{}
 
 // 获取通用信息: ipAddress, ipSource, browser, os
 func (i *ipUtil) GetInfo(c *gin.Context) (ipAddress, browser, os string) {
-	// fmt.Println("IP GetInfo")
 	ipAddress = i.GetIpAddress(c)
 	userAgent := i.GetUserAgent(c)
-	// fmt.Println("ipAddress: ", ipAddress)
 	browser = userAgent.Name + " " + userAgent.Version.String()
 	os = userAgent.OS + " " + userAgent.OSVersion.String()
 	return
@@ -29,6 +27,7 @@ func (i *ipUtil) GetInfo(c *gin.Context) (ipAddress, browser, os string) {
 
 // FIXME: 获取用户发送请求的 IP 地址
 func (*ipUtil) GetIpAddress(c *gin.Context) (ipAddress string) {
+	// fmt.Println("c.ClientIP: ", c.ClientIP())
 	ipAddress = c.Request.Header.Get("X-Real-IP")
 	if ipAddress == "" || len(ipAddress) == 0 || strings.EqualFold("unknown", ipAddress) {
 		ipAddress = c.Request.Header.Get("Proxy-Client-IP")
@@ -39,17 +38,25 @@ func (*ipUtil) GetIpAddress(c *gin.Context) (ipAddress string) {
 	if ipAddress == "" || len(ipAddress) == 0 || strings.EqualFold("unknown", ipAddress) {
 		ipAddress = c.Request.RemoteAddr
 	}
-	if ipAddress == "127.0.0.1" {
+
+	// fmt.Println("GetIpAddress: ", ipAddress)
+	if ipAddress == "127.0.0.1" || strings.HasPrefix(ipAddress, "[::1]") {
 		ip, err := externalIP()
-		log.Println(err)
+		if err != nil {
+			Logger.Error("GetIpAddress, externalIP, err: ", zap.Error(err))
+		}
 		ipAddress = ip.String()
 	}
+	// fmt.Println("GetIpAddress: ", ipAddress)
 	if ipAddress != "" && len(ipAddress) > 15 {
 		if strings.Index(ipAddress, ",") > 0 {
 			ipAddress = ipAddress[:strings.Index(ipAddress, ",")]
 		}
 	}
-	return
+	return ipAddress
+
+	// c.ClientIP() 有时无法获取到真实 IP
+	// return c.ClientIP()
 }
 
 // 获取 IP 来源
@@ -57,15 +64,16 @@ func (*ipUtil) GetIpSource(ipAddress string) string {
 	var dbPath = "./config/ip2region.xdb"
 	searcher, err := xdb.NewWithFileOnly(dbPath)
 	if err != nil {
-		fmt.Printf("failed to create searcher: %s\n", err.Error())
+		Logger.Error("failed to create searcher: ", zap.Error(err))
 		return ""
 	}
 	defer searcher.Close()
 	region, err := searcher.SearchByStr(ipAddress)
 	if err != nil {
-		fmt.Printf("failed to SearchIP(%s): %s\n", ipAddress, err)
+		Logger.Error(fmt.Sprintf("failed to SearchIP(%s): %s\n", ipAddress, err))
 		return "未知"
 	}
+	fmt.Println(region)
 	return region
 }
 
@@ -74,8 +82,14 @@ func (i *ipUtil) GetIpSourceSimpleIdle(ipAddress string) string {
 }
 
 func (*ipUtil) IpSourceSimpleSplit(region string) string {
+	// 中国|0|江苏省|苏州市|电信
+	// 0|0|0|内网IP|内网IP
+	if strings.Contains(region, "内网IP") {
+		return "内容IP"
+	}
+
 	ipSource := strings.Split(region, "|")
-	if ipSource[0] != "中国" {
+	if ipSource[0] != "中国" && ipSource[0] != "0" {
 		return ipSource[0]
 	}
 	if ipSource[2] == "0" {

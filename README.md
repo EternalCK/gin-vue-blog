@@ -351,7 +351,7 @@ docker build -t ginblog .
 - 音乐播放器
 - 鼠标左击特效
 - 看板娘
-- 第三方登录
+- 第三方登录: QQ、微信、Github ...
 - 评论时支持选择表情，参考 Valine
 - 一键部署：使用 docker compose 单机一键部署整个项目（前后端 + 环境）
 - 单独部署：前后端 + 环境
@@ -370,6 +370,13 @@ docker build -t ginblog .
 - `REFINE`: 优化
 - `COMPLETE`: 完善
 - `ADD`: 新增
+
+---
+
+2022-12-19:
+
+博客后台:
+- 添加简易版黑夜模式 (一行 CSS 实现)
 
 ---
 

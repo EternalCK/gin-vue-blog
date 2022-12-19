@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"gin-blog/dao"
 	"gin-blog/model"
 	"gin-blog/model/resp"
@@ -18,7 +19,9 @@ type BlogInfo struct{}
 // 用户上报信息: 统计地域信息, 访问数量
 func (*BlogInfo) Report(c *gin.Context) (code int) {
 	ipAddress, browser, os := utils.IP.GetInfo(c)
+	fmt.Println(ipAddress, browser, os)
 	uuid := utils.Encryptor.MD5(ipAddress + browser + os)
+	fmt.Println(uuid)
 	// 当前用户没有统计过访问人数 (不在 用户set 中)
 	if !utils.Redis.SIsMember(KEY_UNIQUE_VISITOR_SET, uuid) {
 		// 统计地域信息
